@@ -1,0 +1,6 @@
+# Exclut l’environnement Python installé localement.
+.venv/
+# Exclut les dossiers de cache Python.
+__pycache__/
+# Exclut les fichiers Python compilés.
+*.pyc

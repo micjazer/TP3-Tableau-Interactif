@@ -1,0 +1,86 @@
+<!DOCTYPE html> <!-- Utilise le format HTML moderne. -->
+<html lang="fr"> <!-- Indique que la page est en français. -->
+<head> <!-- Regroupe les paramètres de la page. -->
+    <meta charset="UTF-8"> <!-- Autorise les caractères accentués. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1"> <!-- Adapte l’affichage aux petits écrans. -->
+    <title>Tableau partagé — Michel Jazeron</title> <!-- Nomme l’onglet du navigateur. -->
+    <style> /* Définit la présentation sans bibliothèque supplémentaire. */
+        * { box-sizing: border-box; } /* Inclut les bordures dans les dimensions. */
+        body { margin: 0; padding: 24px; background: #eef2f7; color: #182c45; font-family: Arial, sans-serif; } /* Présente la page. */
+        main { max-width: 1040px; margin: auto; } /* Centre le contenu et limite sa largeur. */
+        h1 { margin-bottom: 8px; } /* Rapproche le titre de son explication. */
+        p { line-height: 1.5; } /* Facilite la lecture des indications. */
+        #etat { display: inline-block; padding: 8px 14px; background: white; border: 1px solid #66758a; border-radius: 8px; } /* Distingue l’état de connexion. */
+        canvas { display: block; width: 100%; height: auto; background: white; border: 2px solid #66758a; border-radius: 8px; } /* Redimensionne visuellement le tableau sans changer ses coordonnées. */
+        footer { margin-top: 16px; font-size: 14px; } /* Présente les informations secondaires. */
+    </style> <!-- Termine les règles de présentation. -->
+</head> <!-- Termine les paramètres de la page. -->
+<body> <!-- Commence le contenu visible. -->
+    <main> <!-- Regroupe le tableau et ses indications. -->
+        <h1>Tableau partagé</h1> <!-- Affiche le titre principal. -->
+        <p>Envoyez une forme depuis le client Python : elle apparaît sur les tableaux connectés.</p> <!-- Explique le fonctionnement. -->
+        <p id="etat" role="status">Connexion en cours…</p> <!-- Annonce les changements de connexion. -->
+        <canvas id="tableau" width="1000" height="600" aria-label="Tableau de dessin partagé">Votre navigateur doit prendre en charge Canvas.</canvas> <!-- Crée une surface de dessin aux dimensions fixes. -->
+        <p>Repère : 1 000 × 600 pixels. L’origine (0, 0) se situe en haut à gauche.</p> <!-- Explique les coordonnées utilisées par le client. -->
+        <footer>Michel Jazeron — Les dessins reçus sont conservés dans cette page jusqu’à son actualisation.</footer> <!-- Précise la durée de conservation des dessins. -->
+    </main> <!-- Termine le contenu principal. -->
+    <script> // Commence le programme exécuté par le navigateur.
+        "use strict"; // Active les vérifications supplémentaires de JavaScript.
+        const tableau = document.getElementById("tableau"); // Retrouve la surface de dessin.
+        const contexte = tableau.getContext("2d"); // Obtient les outils de dessin en deux dimensions.
+        const etat = document.getElementById("etat"); // Retrouve l’indicateur de connexion.
+        let compteur = 0; // Compte les formes reçues dans cette page.
+        const protocole = location.protocol === "https:" ? "wss:" : "ws:"; // Choisit une connexion adaptée au protocole de la page.
+        const connexion = new WebSocket(`${protocole}//${location.host}/ws`); // Se connecte au serveur qui fournit la page.
+        function dessiner(forme) { // Dessine une forme transmise par le serveur.
+            const couleur = `rgb(${forme.color.join(",")})`; // Convertit les trois composantes RVB en couleur utilisable.
+            contexte.fillStyle = couleur; // Définit la couleur de remplissage.
+            contexte.strokeStyle = couleur; // Définit la couleur des lignes.
+            contexte.lineWidth = 2; // Fixe l’épaisseur des lignes à deux pixels.
+            contexte.beginPath(); // Commence un tracé indépendant des formes précédentes.
+            switch (forme.shape) { // Sélectionne le dessin correspondant au type reçu.
+                case "point": // Traite un point.
+                    contexte.arc(forme.x, forme.y, 3, 0, Math.PI * 2); // Représente le point par un petit disque visible.
+                    contexte.fill(); // Remplit le disque.
+                    break; // Termine le traitement du point.
+                case "line": // Traite une ligne.
+                    contexte.moveTo(forme.x1, forme.y1); // Place le début de la ligne.
+                    contexte.lineTo(forme.x2, forme.y2); // Place la fin de la ligne.
+                    contexte.stroke(); // Affiche la ligne.
+                    break; // Termine le traitement de la ligne.
+                case "circle": // Traite un cercle.
+                    contexte.arc(forme.x, forme.y, forme.radius, 0, Math.PI * 2); // Utilise x et y comme centre du cercle.
+                    contexte.fill(); // Affiche un cercle rempli.
+                    break; // Termine le traitement du cercle.
+                case "rectangle": // Traite un rectangle.
+                    contexte.fillRect(forme.x, forme.y, forme.width, forme.height); // Dessine depuis le coin supérieur gauche.
+                    break; // Termine le traitement du rectangle.
+                case "square": // Traite un carré.
+                    contexte.fillRect(forme.x, forme.y, forme.cote, forme.cote); // Utilise la même dimension pour les deux côtés.
+                    break; // Termine le traitement du carré.
+                default: // Traite un éventuel type inconnu.
+                    throw new Error("Type de forme inconnu"); // Signale un message non pris en charge.
+            } // Termine le choix du dessin.
+        } // Termine la fonction de dessin.
+        connexion.onopen = () => { // Réagit à l’ouverture du canal WebSocket.
+            etat.textContent = "Connecté — en attente de formes"; // Confirme que le tableau peut recevoir des dessins.
+        }; // Termine le traitement de la connexion.
+        connexion.onmessage = (evenement) => { // Réagit à chaque message reçu.
+            try { // Protège le traitement contre un message incorrect.
+                dessiner(JSON.parse(evenement.data)); // Convertit le JSON puis dessine la forme.
+                compteur += 1; // Comptabilise la forme dessinée.
+                etat.textContent = `Connecté — formes reçues : ${compteur}`; // Actualise le compteur visible.
+            } catch (erreur) { // Intercepte un message impossible à dessiner.
+                etat.textContent = "Une forme reçue n’a pas pu être affichée."; // Informe l’utilisateur du problème.
+                console.error(erreur); // Conserve le détail pour le diagnostic.
+            } // Termine la gestion du message.
+        }; // Termine le traitement des messages.
+        connexion.onerror = () => { // Réagit à une erreur de communication.
+            etat.textContent = "Connexion impossible : vérifiez que le serveur fonctionne."; // Indique quoi vérifier.
+        }; // Termine le traitement des erreurs.
+        connexion.onclose = () => { // Réagit à la fermeture de la connexion.
+            etat.textContent = "Déconnecté — actualisez la page après le redémarrage du serveur."; // Explique comment se reconnecter.
+        }; // Termine le traitement de la déconnexion.
+    </script> <!-- Termine le programme du navigateur. -->
+</body> <!-- Termine le contenu visible. -->
+</html> <!-- Termine la page. -->

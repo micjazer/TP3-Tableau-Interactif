@@ -1,0 +1,5 @@
+fastapi  # Fournit l’API HTTP et le canal WebSocket.
+uvicorn  # Exécute le serveur Python.
+websockets  # Permet à Uvicorn de prendre en charge les connexions WebSocket.
+requests  # Permet au client Python d’envoyer les demandes HTTP.
+pydantic  # Vérifie les formes, les dimensions et les couleurs reçues.
